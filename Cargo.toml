@@ -1,0 +1,21 @@
+[package]
+name = "asomeip"
+version = "0.1.0"
+edition = "2021"
+authors = ["Matthias Behr"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/mbehr1/asomeip/"
+homepage = "https://github.com/mbehr1/asomeip/"
+readme= "README.md"
+description = "Library to handle SOME/IP messages incl. payload via Fibex files."
+keywords = ["dlt", "automotive", "fibex", "someip", "analysis"]
+categories = ["development-tools", "encoding", "parsing"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+afibex = { path = "../afibex", version = "0.1.0"}
+lazy_static = "1.4.0"
+encoding_rs = "0.8.30"
+bitvec = "1"
+funty = "2.0.0"

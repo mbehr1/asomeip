@@ -58,7 +58,7 @@ lazy_static! {
 /// - service name
 /// - (instance id in hex).
 /// - method or event short name. E.g. set_fieldName_field (setter for field 'fieldName')
-/// - payload (as json parseable string)
+/// - payload (as json parseable string). Line breaks in strings will be replaced by spaces
 /// - return code e.g. [OK]
 pub fn decode_someip_header_and_payload(
     fd: &FibexData,
@@ -662,6 +662,10 @@ where
     }
 }
 
+lazy_static! {
+    static ref REGEX_REPLACE_NEWLINE: regex::Regex = regex::Regex::new(r"[\r\n\t]").unwrap();
+}
+
 fn to_writer_coding<W>(
     coding: &Coding,
     writer: &mut W,
@@ -798,6 +802,8 @@ where
                                 let (cow, _had_malformed) = encoder.decode_with_bom_removal(
                                     &ctx.payload[payload_start_idx..payload_end_idx],
                                 );
+                                // replace line breaks
+                                let cow = REGEX_REPLACE_NEWLINE.replace_all(&cow, " ");
                                 writer.write_fmt(format_args!("\"{}\"", cow))?;
                             }
                             *ctx.parsed_bits += len_bytes as u32 * 8;

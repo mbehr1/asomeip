@@ -14,9 +14,12 @@ categories = ["development-tools", "encoding", "parsing"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-afibex = "0.2.0"
+afibex = "0.2.1"
 lazy_static = "1.4.0"
 encoding_rs = "0.8.30"
 bitvec = "1"
 funty = "2.0.0"
 regex = "1.5.4"
+
+[package.metadata.workspaces]
+independent = true

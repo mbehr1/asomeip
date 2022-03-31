@@ -102,7 +102,7 @@ pub fn decode_someip_header_and_payload(
             let method = service.methods_by_mid.get(&method_id);
             if let Some(method) = method {
                 match method {
-                    MethodIdType::Method(method) => {
+                    MethodIdType::Method(method)|MethodIdType::Event(method) => {
                         let method_name = method.short_name.as_ref().unwrap_or(&NO_SHORT_NAME);
 
                         // parse parameter...

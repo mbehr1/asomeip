@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.5 - 2022-04-18
+#### Bug Fixes
+- use minor version dependency to afibex - (c7cd6a9) - Matthias Behr
+- - -
+
 ## v0.1.4 - 2022-04-16
 #### Miscellaneous Chores
 - **(version)** v0.1.3 - (e8af45e) - Matthias Behr

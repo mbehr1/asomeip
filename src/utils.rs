@@ -535,6 +535,7 @@ where
                     }
                 }
             }
+            writer.write_fmt(format_args!("}}"))?;
         } else {
             // todo MULTIPLEXER?
             writer.write_fmt(format_args!("{{}}"))?;

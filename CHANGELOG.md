@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.1 - 2022-05-01
+#### Bug Fixes
+- **(can)** add closing bracket - (a1d4503) - Matthias Behr
+- - -
+
 ## v0.2.0 - 2022-05-01
 #### Features
 - **(can)** add basic CAN support - (49ed2fb) - Matthias Behr

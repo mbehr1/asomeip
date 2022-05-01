@@ -3,11 +3,14 @@
 // todos:
 // [ ] CODED-TYPE.MIN-LENGTH usage (e.g. MIN-LENGTH = 8???)
 // [ ] type and length field sizes from utilization complete usage
-//
+// [ ] support fx:MULTIPLEXER SWITCH... (e.g. _800415618)
+// [ ] support COMPU-METHOD CATEGORY IDENTICAL and TEXTTABLE for Coding deserialization
+// [ ] refactor buf_as_hex_to_io_write out of adlt
 
 use afibex::fibex::{
     BaseDataType, Category, Coding, ComplexDatatypeClass, Datatype, DatatypeType, Encoding, Enum,
-    FibexData, FibexError, HoTermination, Method, MethodIdType, Parameter, Service, Utilization,
+    FibexData, FibexError, Frame, HoTermination, Method, MethodIdType, Parameter, Pdu, Service,
+    Utilization,
 };
 use bitvec::{field::BitField, order::Lsb0, prelude::*};
 use lazy_static::lazy_static;
@@ -16,6 +19,33 @@ use std::{
     convert::TryInto,
     io::{ErrorKind, Write},
 };
+
+static U8_HEX_LOW: [u8; 16] = [
+    b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'a', b'b', b'c', b'd', b'e', b'f',
+];
+
+/// same as buf_as_hex_to_write but with a
+/// std::io::Write as a byte stream.
+///
+/// Each byte is output as two lower-case digits.
+/// A space is output between each byte.
+/// e.g. "0f 00"
+///
+pub fn buf_as_hex_to_io_write(
+    writer: &mut impl std::io::Write,
+    buf: &[u8],
+) -> Result<(), std::io::Error> {
+    for (i, item) in buf.iter().enumerate() {
+        let c1 = U8_HEX_LOW[(item >> 4) as usize];
+        let c2 = U8_HEX_LOW[(item & 0x0f) as usize];
+        if i > 0 {
+            writer.write_all(&[b' ', c1, c2])?
+        } else {
+            writer.write_all(&[c1, c2])?
+        }
+    }
+    Ok(())
+}
 
 lazy_static! {
     /// message type indicator see PRS_SOMEIP_00055
@@ -53,7 +83,7 @@ lazy_static! {
 
 /// decode a someip header and payload according to RS_SOMEIP_00027
 /// into a string that follows the conventions:
-/// - symbol for request (<), response (<), notification (*) or errors (!)
+/// - symbol for request (>), response (<), notification (*) or errors (!)
 /// - (client-id:session-id)
 /// - service name
 /// - (instance id in hex).
@@ -271,6 +301,95 @@ pub fn decode_someip_header_and_payload(
     }
 }
 
+/// decode the payload of a frame as an object in json format
+pub(crate) fn decode_frame_payload<W>(
+    frame: &Frame,
+    writer: &mut W,
+    fd: &FibexData,
+    payload: &[u8],
+) -> std::io::Result<()>
+where
+    W: std::io::Write,
+{
+    // todo change to writer instead of String for perfo
+    //let mut res = String::with_capacity(1024); // todo better heuristics?
+
+    if frame.byte_length > payload.len() as u32 {
+        // backwards comp. ignoring additional payload bytes?
+        writer.write_fmt(format_args!(
+            "\"<adlt.err! FRAME.BYTE-LENGTH({}) > payload len({})>\"",
+            frame.byte_length,
+            payload.len()
+        ))?;
+        return Ok(());
+    }
+
+    let pdus = &frame.pdu_instances;
+
+    if !pdus.is_empty() {
+        // the pdus are already sorted by POSITION/BIT-...
+        // parse until payload_length or payload is at the end
+        // we want to output the json in the order of the params. so we cannot use an serde_json::Value::Object directly (as its a map)
+        let mut parsed_bits = 0u32;
+        let available_bits = std::cmp::min(payload.len() as u32, frame.byte_length) * 8;
+
+        // todo think about which one to use or which error handling... this might be similar to recorded len vs. orig len for pcaps
+        let ctx = &mut SomeipDecodingCtx {
+            fd,
+            parsed_bits: &mut parsed_bits,
+            available_bits,
+            payload,
+        };
+
+        for (index, pdu_inst) in pdus.iter().enumerate() {
+            // find pdu
+            if let Some(pdu) = fd.elements.pdus_map_by_id.get(&pdu_inst.pdu_ref) {
+                // adjust bit-position? skip some bits?
+                match &pdu_inst.bit_position {
+                    Some(bit_position) if *bit_position > *ctx.parsed_bits => {
+                        /*writer.write_fmt(format_args!(
+                            "\"<adlt.info! skipped {} bits due to BIT-POSITION>\"",
+                            *bit_position - *ctx.parsed_bits
+                        ))?;*/
+                        *ctx.parsed_bits = *bit_position;
+                    }
+                    Some(bit_position) if *bit_position < *ctx.parsed_bits => {
+                        writer.write_fmt(format_args!(
+                            "\"<adlt.err! BIT-POSITION ({}) mismatch ({})!>\"",
+                            *bit_position, *ctx.parsed_bits
+                        ))?;
+                        break;
+                    }
+                    _ => {}
+                }
+                // write a string representation for that parameter like "short-name":value_as_json
+                if index == 0 {
+                    writer.write_fmt(format_args!("{{"))?;
+                } else {
+                    writer.write_fmt(format_args!(","))?;
+                }
+                if let Some(short_name) = &pdu.short_name {
+                    writer.write_fmt(format_args!("\"{}\":", short_name))?;
+                } else {
+                    writer.write_fmt(format_args!("\"{}\":", index))?;
+                };
+
+                if *ctx.parsed_bits >= ctx.available_bits {
+                    writer.write_fmt(format_args!("\"<adlt.err! no payload remaining>\""))?;
+                } else {
+                    // now the real payload
+                    to_writer_pdu(pdu, fd, writer, ctx, None)?; // todo Utilization/serialization-attributes in Method
+                }
+            }
+        }
+        writer.write_fmt(format_args!("}}"))?;
+    } else {
+        writer.write_fmt(format_args!("{{}}"))?;
+    }
+
+    Ok(())
+}
+
 /// decode the payload as an object in json format
 fn decode_payload(
     fd: &FibexData,
@@ -346,6 +465,85 @@ fn decode_payload(
     let res = unsafe { String::from_utf8_unchecked(writer) }; // we do know its proper utf8 strings... (todo ensure for each encoding!)
 
     Ok(res)
+}
+
+fn to_writer_pdu<W>(
+    pdu: &Pdu,
+    fd: &FibexData,
+    writer: &mut W,
+    ctx: &mut SomeipDecodingCtx,
+    parent_utilization: Option<&Utilization>,
+) -> std::io::Result<()>
+where
+    W: std::io::Write,
+{
+    // enough bits remaining?
+    if (*ctx.parsed_bits + (pdu.byte_length * 8)) < ctx.available_bits {
+        Err(std::io::Error::new(
+            ErrorKind::Other,
+            format!("no more data to decode PDU {:?}!", pdu.short_name),
+        ))
+    } else {
+        let prev_parsed_bits = *ctx.parsed_bits;
+        if !pdu.signal_instances.is_empty() {
+            for (index, signal_inst) in pdu.signal_instances.iter().enumerate() {
+                // find signal
+                if let Some(signal) = fd.elements.signals_map_by_id.get(&signal_inst.signal_ref) {
+                    // adjust bit-position: skip some bits?
+                    match &signal_inst.bit_position {
+                        Some(bit_position) if *bit_position > *ctx.parsed_bits => {
+                            /*writer.write_fmt(format_args!(
+                                "\"<adlt.info! skipped {} bits due to BIT-POSITION>\"",
+                                *bit_position - *ctx.parsed_bits
+                            ))?;*/
+                            *ctx.parsed_bits = *bit_position;
+                        }
+                        Some(bit_position) if *bit_position < *ctx.parsed_bits => {
+                            writer.write_fmt(format_args!(
+                                "\"<adlt.err! BIT-POSITION ({}) mismatch ({})!>\"",
+                                *bit_position, *ctx.parsed_bits
+                            ))?;
+                            break;
+                        }
+                        _ => {}
+                    }
+                    // write a string representation for that parameter like "short-name":value_as_json
+                    if index == 0 {
+                        writer.write_fmt(format_args!("{{"))?;
+                    } else {
+                        writer.write_fmt(format_args!(","))?;
+                    }
+                    if let Some(short_name) = &signal.short_name {
+                        writer.write_fmt(format_args!("\"{}\":", short_name))?;
+                    } else {
+                        writer.write_fmt(format_args!("\"{}\":", index))?;
+                    };
+                    // process signal, get coding:
+                    if let Some(coding) = fd.pi.codings.get(&signal.coding_ref) {
+                        /*writer.write_fmt(format_args!(
+                            "\" <SIGNAL {:?} CODING-REF {}!>\"",
+                            signal.short_name, signal.coding_ref,
+                        ))?;*/
+                        // todo is_high_low_byte_order! then overwrite/modify parent_utilization
+                        to_writer_coding(coding, writer, ctx, None, parent_utilization)?;
+                    } else {
+                        writer.write_fmt(format_args!(
+                            "\"<adlt.err! CODING-REF not found ({}) for PDU short-name={:?}!>\"",
+                            signal.coding_ref, pdu.short_name,
+                        ))?;
+                        break;
+                    }
+                }
+            }
+        } else {
+            // todo MULTIPLEXER?
+            writer.write_fmt(format_args!("{{}}"))?;
+        }
+
+        // mark full pdu as processed: (so that incomplete/errorneus can be skipped)
+        *ctx.parsed_bits = prev_parsed_bits + (pdu.byte_length * 8);
+        Ok(())
+    }
 }
 
 fn to_writer_parameter<W>(
@@ -923,6 +1121,13 @@ impl<'a, 'b> SomeipDecodingCtx<'a, 'b> {
 mod tests {
     use super::*;
     use std::path::Path;
+
+    #[test]
+    fn buf_as_hex_to_write1() {
+        let mut v = Vec::<u8>::new();
+        buf_as_hex_to_io_write(&mut v, &[0x0f_u8, 0x00_u8, 0xff_u8]).unwrap();
+        assert_eq!(std::str::from_utf8(v.as_slice()).unwrap(), "0f 00 ff");
+    }
 
     #[test]
     fn too_short_header() {

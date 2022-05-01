@@ -2,7 +2,7 @@
 
 ## FEATURES
 
-- decode SOME/IP payload together with a FIBEX file loaded via [afibex](https://github.com/mbehr1/afibex) crate.
+- decode SOME/IP and CAN payload together with a FIBEX file loaded via [afibex](https://github.com/mbehr1/afibex) crate.
 
 ## License
 

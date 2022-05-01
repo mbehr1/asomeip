@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.2.0 - 2022-05-01
+#### Features
+- **(can)** add basic CAN support - (49ed2fb) - Matthias Behr
+- - -
+
 ## v0.1.5 - 2022-04-18
 #### Bug Fixes
 - use minor version dependency to afibex - (c7cd6a9) - Matthias Behr

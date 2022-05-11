@@ -8,9 +8,9 @@
 // [ ] refactor buf_as_hex_to_io_write out of adlt
 
 use afibex::fibex::{
-    BaseDataType, Category, Coding, ComplexDatatypeClass, Datatype, DatatypeType, Encoding, Enum,
-    FibexData, FibexError, Frame, HoTermination, Method, MethodIdType, Parameter, Pdu, Service,
-    Utilization,
+    BaseDataType, Category, Coding, ComplexDatatypeClass, CompuCategory, CompuMethod, Datatype,
+    DatatypeType, Encoding, Enum, FibexData, FibexError, Frame, HoTermination, Method,
+    MethodIdType, Parameter, Pdu, Service, Utilization, VvT, XsDouble,
 };
 use bitvec::{field::BitField, order::Lsb0, prelude::*};
 use lazy_static::lazy_static;
@@ -307,6 +307,7 @@ pub(crate) fn decode_frame_payload<W>(
     writer: &mut W,
     fd: &FibexData,
     payload: &[u8],
+    decode_compu_methods: bool,
 ) -> std::io::Result<()>
 where
     W: std::io::Write,
@@ -378,7 +379,8 @@ where
                     writer.write_fmt(format_args!("\"<adlt.err! no payload remaining>\""))?;
                 } else {
                     // now the real payload
-                    to_writer_pdu(pdu, fd, writer, ctx, None)?; // todo Utilization/serialization-attributes in Method
+                    to_writer_pdu(pdu, fd, writer, ctx, None, decode_compu_methods)?;
+                    // todo Utilization/serialization-attributes in Method
                 }
             }
         }
@@ -473,6 +475,7 @@ fn to_writer_pdu<W>(
     writer: &mut W,
     ctx: &mut SomeipDecodingCtx,
     parent_utilization: Option<&Utilization>,
+    decode_compu_methods: bool,
 ) -> std::io::Result<()>
 where
     W: std::io::Write,
@@ -525,7 +528,14 @@ where
                             signal.short_name, signal.coding_ref,
                         ))?;*/
                         // todo is_high_low_byte_order! then overwrite/modify parent_utilization
-                        to_writer_coding(coding, writer, ctx, None, parent_utilization)?;
+                        to_writer_coding(
+                            coding,
+                            writer,
+                            ctx,
+                            None,
+                            parent_utilization,
+                            decode_compu_methods,
+                        )?;
                     } else {
                         writer.write_fmt(format_args!(
                             "\"<adlt.err! CODING-REF not found ({}) for PDU short-name={:?}!>\"",
@@ -758,7 +768,7 @@ where
                         ),
                     )
                 })?;
-                to_writer_coding(coding, writer, ctx, None, utilization)?;
+                to_writer_coding(coding, writer, ctx, None, utilization, false)?;
             }
             DatatypeType::EnumType { coding_ref, enums } => {
                 let coding_ref = utilization
@@ -773,7 +783,7 @@ where
                         ),
                     )
                 })?;
-                to_writer_coding(coding, writer, ctx, Some(enums), utilization)?;
+                to_writer_coding(coding, writer, ctx, Some(enums), utilization, false)?;
             }
             DatatypeType::ComplexType(cdt) => match &cdt.class {
                 ComplexDatatypeClass::Typedef => {
@@ -863,6 +873,7 @@ where
 
 lazy_static! {
     static ref REGEX_REPLACE_NEWLINE: regex::Regex = regex::Regex::new(r"[\r\n\t]").unwrap();
+    static ref EMPTY_VEC_CMS: Vec<CompuMethod> = vec![];
 }
 
 fn to_writer_coding<W>(
@@ -871,6 +882,7 @@ fn to_writer_coding<W>(
     ctx: &mut SomeipDecodingCtx,
     enums: Option<&Vec<Enum>>,
     utilization: Option<&Utilization>,
+    decode_compu_methods: bool,
 ) -> std::io::Result<()>
 where
     W: std::io::Write,
@@ -881,53 +893,55 @@ where
             "no more data to decode Coding!",
         ));
     } else if let Some(coded_type) = &coding.coded_type {
-        let bit_length = utilization
+        let bit_l = utilization
             .and_then(|u| u.bit_length)
             .or(coded_type.bit_length);
 
-        let big_endian = utilization
+        let be = utilization
             .and_then(|u| u.is_high_low_byte_order)
             .unwrap_or(true); // default to big endian
+
+        let cms = if decode_compu_methods {
+            &coding.compu_methods
+        } else {
+            &EMPTY_VEC_CMS
+        };
 
         if let Some(base_data_type) = &coded_type.base_data_type {
             match &base_data_type {
                 BaseDataType::AUint8 => {
-                    write_int_val::<u8, W>(writer, big_endian, &bit_length, ctx, enums)?
+                    write_int_val::<u8, W>(writer, be, &bit_l, ctx, enums, cms)?
                 }
                 BaseDataType::AUint16 => {
-                    write_int_val::<u16, W>(writer, big_endian, &bit_length, ctx, enums)?
+                    write_int_val::<u16, W>(writer, be, &bit_l, ctx, enums, cms)?
                 }
                 BaseDataType::AUint32 => {
-                    write_int_val::<u32, W>(writer, big_endian, &bit_length, ctx, enums)?
+                    write_int_val::<u32, W>(writer, be, &bit_l, ctx, enums, cms)?
                 }
                 BaseDataType::AUint64 => {
-                    write_int_val::<u64, W>(writer, big_endian, &bit_length, ctx, enums)?
+                    write_int_val::<u64, W>(writer, be, &bit_l, ctx, enums, cms)?
                 }
-                BaseDataType::AInt8 => {
-                    write_int_val::<i8, W>(writer, big_endian, &bit_length, ctx, enums)?
-                }
+                BaseDataType::AInt8 => write_int_val::<i8, W>(writer, be, &bit_l, ctx, enums, cms)?,
                 BaseDataType::AInt16 => {
-                    write_int_val::<i16, W>(writer, big_endian, &bit_length, ctx, enums)?
+                    write_int_val::<i16, W>(writer, be, &bit_l, ctx, enums, cms)?
                 }
                 BaseDataType::AInt32 => {
-                    write_int_val::<i32, W>(writer, big_endian, &bit_length, ctx, enums)?
+                    write_int_val::<i32, W>(writer, be, &bit_l, ctx, enums, cms)?
                 }
                 BaseDataType::AInt64 => {
-                    write_int_val::<i64, W>(writer, big_endian, &bit_length, ctx, enums)?
+                    write_int_val::<i64, W>(writer, be, &bit_l, ctx, enums, cms)?
                 }
                 BaseDataType::AFloat64 => {
                     // todo check that we're on a byte boundary?
                     // check that bit_length is f64 bitlength?
-                    let val_u64: u64 =
-                        get_int_bits(big_endian, bit_length.unwrap_or(u64::BITS), ctx);
+                    let val_u64: u64 = get_int_bits(be, bit_l.unwrap_or(u64::BITS), ctx);
                     let val = f64::from_bits(val_u64);
                     writer.write_fmt(format_args!("{}", val))?
                 }
                 BaseDataType::AFloat32 => {
                     // todo check that we're on a byte boundary?
                     // check that bit_length is f64 bitlength?
-                    let val_u32: u32 =
-                        get_int_bits(big_endian, bit_length.unwrap_or(u32::BITS), ctx);
+                    let val_u32: u32 = get_int_bits(be, bit_l.unwrap_or(u32::BITS), ctx);
                     let val = f32::from_bits(val_u32);
                     writer.write_fmt(format_args!("{}", val))?
                 }
@@ -977,7 +991,7 @@ where
                                     len_bytes
                                 }
                                 Category::StandardLengthType => {
-                                    (bit_length.unwrap_or_default() / 8) as usize
+                                    (bit_l.unwrap_or_default() / 8) as usize
                                 } // better default???
                                 _ => 0,
                             };
@@ -1049,10 +1063,12 @@ fn write_int_val<I: funty::Integral, W: std::io::Write>(
     bit_length: &Option<u32>,
     ctx: &mut SomeipDecodingCtx,
     enums: Option<&Vec<Enum>>,
+    compu_methods: &Vec<CompuMethod>,
 ) -> std::io::Result<()> {
     let bit_length = bit_length.unwrap_or(I::BITS);
     let val: I = get_int_bits(big_endian, bit_length, ctx);
     if let Some(enums) = enums {
+        // we prefer enums over compu_methods
         // todo change to hashmap. for now iterate:
         let a_enum = enums.iter().find(|e| {
             if e.value < 0 && I::ZERO == I::MIN {
@@ -1072,6 +1088,77 @@ fn write_int_val<I: funty::Integral, W: std::io::Write>(
             }
         } else {
             writer.write_fmt(format_args!("{}", val)) // or indicate missing enum?
+        }
+    } else if !compu_methods.is_empty() {
+        let xsv = XsDouble::I64(val.as_i64());
+        for compu_method in compu_methods {
+            let cat = &compu_method.category;
+            // for now only check interal_to_phys_scales:
+            let mut matches = 0u32;
+            let mut needs_trailing_str_end = false;
+            match cat {
+                CompuCategory::TextTable
+                | CompuCategory::Identical
+                | CompuCategory::BitfieldTextTable => {
+                    for scale in &compu_method.internal_to_phys_scales {
+                        // Bitfield... masking... here
+                        //println!("before mask got xsvs={:?}, mask={:?} val={} low={:?} upp={:?}", xsv, scale.mask, val, scale.lower_limit, scale.upper_limit);
+                        let xsvs = if let Some(mask) = &scale.mask {
+                            XsDouble::I64(((val.as_i64() as u64) & mask) as i64)
+                        } else {
+                            xsv.clone()
+                        };
+
+                        if let Some(upper) = &scale.upper_limit {
+                            match upper.partial_cmp(&xsvs) {
+                                Some(std::cmp::Ordering::Less) | None => continue,
+                                _ => {}
+                            }
+                        }
+                        if let Some(lower) = &scale.lower_limit {
+                            match lower.partial_cmp(&xsvs) {
+                                Some(std::cmp::Ordering::Greater) | None => continue,
+                                _ => {}
+                            }
+                        }
+                        // got a match
+                        if let Some(cc) = &scale.compu_const {
+                            match cc {
+                                VvT::VT(t) => {
+                                    if *cat == CompuCategory::BitfieldTextTable {
+                                        if matches > 0 {
+                                            write!(writer, " | {}_{}", t, val)?;
+                                        } else {
+                                            write!(writer, "\"{}_{}", t, val)?;
+                                        }
+                                        needs_trailing_str_end = true;
+                                        matches += 1;
+                                    } else {
+                                        return write!(writer, "\"{}_{}\"", t, val);
+                                    }
+                                }
+                                VvT::V(_) => break, // makes no sense return write!(writer,"'{:?}_{}'", t, val), todo or continue?
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+            if matches > 0 {
+                if needs_trailing_str_end {
+                    write!(writer, "\"")?;
+                }
+                return Ok(());
+            }
+        }
+        //write!(writer,"{:?}", compu_methods)
+
+        // if we're here we did not match:
+        if I::BITS > u32::BITS {
+            // for js/ts/node json compatibility we persist those big numbers as strings: // todo add test case and doc
+            writer.write_fmt(format_args!(r#""{}n""#, val))
+        } else {
+            writer.write_fmt(format_args!("{}", val))
         }
     } else if I::BITS > u32::BITS {
         // for js/ts/node json compatibility we persist those big numbers as strings: // todo add test case and doc

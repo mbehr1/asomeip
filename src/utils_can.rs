@@ -65,6 +65,8 @@ pub fn decode_can_frame(
     channel_id: &Option<&String>,
     frame_id: u32,
     payload: &[u8],
+    decode_payload: bool,
+    decode_compu_methods: bool,
 ) -> Result<String, FibexError> {
     if frame_id == 0 {
         Err(FibexError::new("can: frame_id 0 is invalid"))
@@ -94,10 +96,13 @@ pub fn decode_can_frame(
                 write!(writer, "[").map_err(|e| FibexError { msg: e.to_string() })?;
                 buf_as_hex_to_io_write(&mut writer, payload)
                     .map_err(|e| FibexError { msg: e.to_string() })?;
-                write!(writer, "]:").map_err(|e| FibexError { msg: e.to_string() })?;
+                write!(writer, "]").map_err(|e| FibexError { msg: e.to_string() })?;
 
-                decode_frame_payload(frame, &mut writer, fd, payload)
-                    .map_err(|e| FibexError { msg: e.to_string() })?;
+                if decode_payload {
+                    write!(writer, ":").map_err(|e| FibexError { msg: e.to_string() })?;
+                    decode_frame_payload(frame, &mut writer, fd, payload, decode_compu_methods)
+                        .map_err(|e| FibexError { msg: e.to_string() })?;
+                }
             } else {
                 write!(
                     writer,
@@ -145,7 +150,7 @@ mod tests {
     fn frame_id_0() {
         let fd = FibexData::new();
 
-        let r = decode_can_frame(&fd, true, &None, 0, &[]);
+        let r = decode_can_frame(&fd, true, &None, 0, &[], false, false);
         assert!(r.is_err());
     }
 

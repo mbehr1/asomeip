@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.3.2 - 2023-03-01
+#### Bug Fixes
+- panic on overflow on insane length - (b1b51cc) - Matthias Behr
+
+- - -
+
 ## v0.3.1 - 2022-12-25
 #### Miscellaneous Chores
 - **(version)** v0.3.1 - (55823ee) - Matthias Behr

@@ -1002,6 +1002,20 @@ where
                                 len_bytes
                             }; // remove term zero todo only if...
 
+                            if len_bytes > 0xffff {
+                                writer.write_fmt(format_args!(
+                                    "adlt.someip.len_bytes insane {}",
+                                    len_bytes
+                                ))?;
+                                return Err(std::io::Error::new(
+                                    ErrorKind::Other,
+                                    format!(
+                                        "adlt.someip.len_bytes insane {} on decode Coding {:?}!",
+                                        len_bytes, coding
+                                    ),
+                                ));
+                            }
+
                             if ctx.remaining_bits() >= 8 {
                                 let payload_start_idx = ((*ctx.parsed_bits) >> 3) as usize;
                                 let payload_end_idx = payload_start_idx + len_bytes_wo_term;

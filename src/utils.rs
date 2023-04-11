@@ -910,26 +910,28 @@ where
         if let Some(base_data_type) = &coded_type.base_data_type {
             match &base_data_type {
                 BaseDataType::AUint8 => {
-                    write_int_val::<u8, W>(writer, be, &bit_l, ctx, enums, cms)?
+                    write_int_val::<u8, W>(writer, be, &bit_l, ctx, enums, cms, false)?
                 }
                 BaseDataType::AUint16 => {
-                    write_int_val::<u16, W>(writer, be, &bit_l, ctx, enums, cms)?
+                    write_int_val::<u16, W>(writer, be, &bit_l, ctx, enums, cms, false)?
                 }
                 BaseDataType::AUint32 => {
-                    write_int_val::<u32, W>(writer, be, &bit_l, ctx, enums, cms)?
+                    write_int_val::<u32, W>(writer, be, &bit_l, ctx, enums, cms, false)?
                 }
                 BaseDataType::AUint64 => {
-                    write_int_val::<u64, W>(writer, be, &bit_l, ctx, enums, cms)?
+                    write_int_val::<u64, W>(writer, be, &bit_l, ctx, enums, cms, false)?
                 }
-                BaseDataType::AInt8 => write_int_val::<i8, W>(writer, be, &bit_l, ctx, enums, cms)?,
+                BaseDataType::AInt8 => {
+                    write_int_val::<i8, W>(writer, be, &bit_l, ctx, enums, cms, false)?
+                }
                 BaseDataType::AInt16 => {
-                    write_int_val::<i16, W>(writer, be, &bit_l, ctx, enums, cms)?
+                    write_int_val::<i16, W>(writer, be, &bit_l, ctx, enums, cms, false)?
                 }
                 BaseDataType::AInt32 => {
-                    write_int_val::<i32, W>(writer, be, &bit_l, ctx, enums, cms)?
+                    write_int_val::<i32, W>(writer, be, &bit_l, ctx, enums, cms, false)?
                 }
                 BaseDataType::AInt64 => {
-                    write_int_val::<i64, W>(writer, be, &bit_l, ctx, enums, cms)?
+                    write_int_val::<i64, W>(writer, be, &bit_l, ctx, enums, cms, false)?
                 }
                 BaseDataType::AFloat64 => {
                     // todo check that we're on a byte boundary?
@@ -1047,6 +1049,57 @@ where
                         }
                     }
                 }
+                BaseDataType::Other => {
+                    if let Some(bit_length) = bit_l {
+                        match bit_length {
+                            64 => {
+                                write_int_val::<u64, W>(writer, be, &bit_l, ctx, enums, cms, true)?
+                            }
+                            32 => {
+                                write_int_val::<u32, W>(writer, be, &bit_l, ctx, enums, cms, true)?
+                            }
+                            16 => {
+                                write_int_val::<u16, W>(writer, be, &bit_l, ctx, enums, cms, true)?
+                            }
+                            8 => write_int_val::<u8, W>(writer, be, &bit_l, ctx, enums, cms, true)?,
+                            _ => {
+                                // output as hex dump
+                                let slice_end = std::cmp::min(
+                                    *ctx.parsed_bits + bit_length,
+                                    ctx.available_bits,
+                                ) as usize;
+                                writer.write_all(b"[")?;
+                                while slice_end > *ctx.parsed_bits as usize {
+                                    write_int_val::<u8, W>(
+                                        writer,
+                                        be,
+                                        &Some(8),
+                                        ctx,
+                                        None,
+                                        &vec![],
+                                        true,
+                                    )?;
+                                    if slice_end > *ctx.parsed_bits as usize {
+                                        writer.write_all(b", ")?;
+                                    }
+                                }
+                                writer.write_all(b"]")?
+                            }
+                        }
+                    } else {
+                        writer.write_fmt(format_args!(
+                            "adlt.someip.nyi! Coding w.o. bit_length base_data_type: {:?}",
+                            base_data_type
+                        ))?;
+                        return Err(std::io::Error::new(
+                            ErrorKind::Other,
+                            format!(
+                                "nyi {:?} on decode Coding w.o. bit_length {:?}!",
+                                coded_type, coding
+                            ),
+                        ));
+                    }
+                }
                 _ => {
                     // todo other types!
                     writer.write_fmt(format_args!(
@@ -1078,6 +1131,7 @@ fn write_int_val<I: funty::Integral, W: std::io::Write>(
     ctx: &mut SomeipDecodingCtx,
     enums: Option<&Vec<Enum>>,
     compu_methods: &Vec<CompuMethod>,
+    as_hex: bool, // only if neither enums nor compu_methods applied
 ) -> std::io::Result<()> {
     let bit_length = bit_length.unwrap_or(I::BITS);
     let val: I = get_int_bits(big_endian, bit_length, ctx);
@@ -1100,9 +1154,12 @@ fn write_int_val<I: funty::Integral, W: std::io::Write>(
                 writer.write_fmt(format_args!("<adlt.someip.no synonym!>{}", val))
                 // or indicate missing synonym for known enum?
             }
+        } else if as_hex {
+            writer.write_fmt(format_args!("{:#x}", val))
         } else {
-            writer.write_fmt(format_args!("{}", val)) // or indicate missing enum?
+            writer.write_fmt(format_args!("{}", val))
         }
+        // or indicate missing enum?
     } else if !compu_methods.is_empty() {
         let xsv = XsDouble::I64(val.as_i64());
         for compu_method in compu_methods {
@@ -1170,13 +1227,25 @@ fn write_int_val<I: funty::Integral, W: std::io::Write>(
         // if we're here we did not match:
         if I::BITS > u32::BITS {
             // for js/ts/node json compatibility we persist those big numbers as strings: // todo add test case and doc
-            writer.write_fmt(format_args!(r#""{}n""#, val))
+            if as_hex {
+                writer.write_fmt(format_args!(r#""{:#x}""#, val))
+            } else {
+                writer.write_fmt(format_args!(r#""{}n""#, val))
+            }
+        } else if as_hex {
+            writer.write_fmt(format_args!("{:#x}", val))
         } else {
             writer.write_fmt(format_args!("{}", val))
         }
     } else if I::BITS > u32::BITS {
         // for js/ts/node json compatibility we persist those big numbers as strings: // todo add test case and doc
-        writer.write_fmt(format_args!(r#""{}n""#, val))
+        if as_hex {
+            writer.write_fmt(format_args!(r#""{:#x}""#, val))
+        } else {
+            writer.write_fmt(format_args!(r#""{}n""#, val))
+        }
+    } else if as_hex {
+        writer.write_fmt(format_args!("{:#x}", val))
     } else {
         writer.write_fmt(format_args!("{}", val))
     }
@@ -1221,6 +1290,8 @@ impl<'a, 'b> SomeipDecodingCtx<'a, 'b> {
 
 #[cfg(test)]
 mod tests {
+    use afibex::fibex::CodedType;
+
     use super::*;
     use std::path::Path;
 
@@ -1229,6 +1300,91 @@ mod tests {
         let mut v = Vec::<u8>::new();
         buf_as_hex_to_io_write(&mut v, &[0x0f_u8, 0x00_u8, 0xff_u8]).unwrap();
         assert_eq!(std::str::from_utf8(v.as_slice()).unwrap(), "0f 00 ff");
+    }
+
+    #[test]
+    fn writer_coding_other() {
+        let mut v = Vec::<u8>::new();
+        let mut coding: Coding = Coding {
+            id: "other".to_string(),
+            short_name: None,
+            coded_type: Some(CodedType {
+                bit_length: Some(64),
+                min_length: None,
+                max_length: None,
+                base_data_type: Some(BaseDataType::Other),
+                category: Category::StandardLengthType,
+                encoding: None,
+                termination: None,
+            }),
+            compu_methods: vec![],
+        };
+        let fd = FibexData::new();
+        let mut parsed_bits = 0u32;
+        let mut ctx = SomeipDecodingCtx {
+            parsed_bits: &mut parsed_bits,
+            available_bits: 64,
+            payload: &[0xf0_u8, 0x10, 0x2f, 0x03, 0x04, 0x05, 0x06, 0x07],
+            fd: &fd,
+        };
+
+        // 64-bit -> expect "0x..." (string escaped 0x... (without n) to avoid javascript safe_max_int limit)
+        to_writer_coding(&coding, &mut v, &mut ctx, None, None, true).unwrap();
+        assert_eq!(
+            *ctx.parsed_bits,
+            coding.coded_type.as_ref().unwrap().bit_length.unwrap()
+        );
+        assert_eq!(
+            std::str::from_utf8(v.as_slice()).unwrap(),
+            "\"0xf0102f0304050607\""
+        );
+        // 32-bit -> expect 0x........
+        v.clear();
+        coding.coded_type.as_mut().unwrap().bit_length = Some(32);
+        *ctx.parsed_bits = 0;
+        to_writer_coding(&coding, &mut v, &mut ctx, None, None, true).unwrap();
+        assert_eq!(
+            *ctx.parsed_bits,
+            coding.coded_type.as_ref().unwrap().bit_length.unwrap()
+        );
+        assert_eq!(std::str::from_utf8(v.as_slice()).unwrap(), "0xf0102f03");
+        // 16-bit -> expect 0x....
+        v.clear();
+        coding.coded_type.as_mut().unwrap().bit_length = Some(16);
+        *ctx.parsed_bits = 4; // lets use a bit offset of 4
+        to_writer_coding(&coding, &mut v, &mut ctx, None, None, true).unwrap();
+        assert_eq!(
+            *ctx.parsed_bits - 4,
+            coding.coded_type.as_ref().unwrap().bit_length.unwrap()
+        );
+        assert_eq!(
+            std::str::from_utf8(v.as_slice()).unwrap(),
+            "0xf10f" // todo this is weird. I'd expect 0102...
+        );
+        // 8-bit -> expect 0x..
+        v.clear();
+        coding.coded_type.as_mut().unwrap().bit_length = Some(8);
+        *ctx.parsed_bits = 0;
+        to_writer_coding(&coding, &mut v, &mut ctx, None, None, true).unwrap();
+        assert_eq!(
+            *ctx.parsed_bits,
+            coding.coded_type.as_ref().unwrap().bit_length.unwrap()
+        );
+        assert_eq!(std::str::from_utf8(v.as_slice()).unwrap(), "0xf0");
+
+        // 24-bit -> expect [0x.., 0x.., 0x..] (array with 3 hexdumps)
+        v.clear();
+        coding.coded_type.as_mut().unwrap().bit_length = Some(24);
+        *ctx.parsed_bits = 0;
+        to_writer_coding(&coding, &mut v, &mut ctx, None, None, true).unwrap();
+        assert_eq!(
+            *ctx.parsed_bits,
+            coding.coded_type.as_ref().unwrap().bit_length.unwrap()
+        );
+        assert_eq!(
+            std::str::from_utf8(v.as_slice()).unwrap(),
+            "[0xf0, 0x10, 0x2f]"
+        );
     }
 
     #[test]

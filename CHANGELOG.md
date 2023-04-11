@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.4.0 - 2023-04-11
+#### Features
+- add support for BaseDataType::Other - (8a49ef7) - Matthias Behr
+
+- - -
+
 ## v0.3.2 - 2023-03-01
 #### Bug Fixes
 - panic on overflow on insane length - (b1b51cc) - Matthias Behr

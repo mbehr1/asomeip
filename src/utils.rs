@@ -947,7 +947,7 @@ where
                     let val = f32::from_bits(val_u32);
                     writer.write_fmt(format_args!("{}", val))?
                 }
-                BaseDataType::AUnicode2String => {
+                BaseDataType::AUnicode2String | BaseDataType::AAsciiString => {
                     // todo fail if not on byte boundary!
                     // todo util.length-field-size!
 
@@ -964,18 +964,43 @@ where
                                 Some(Encoding::Iso8859_1) => encoding_rs::ISO_8859_15, // todo???
                                 Some(Encoding::Iso8859_2) => encoding_rs::ISO_8859_2,
                                 _ => {
-                                    writer.write_fmt(format_args!(
-                                        "adlt.someip unexpected encoding {:?} for AUnicode2String!",
-                                        coded_type.encoding
-                                    ))?;
-                                    encoding_rs::UTF_8
+                                    match &base_data_type {
+                                        BaseDataType::AAsciiString => {
+                                            encoding_rs::ISO_8859_15 // todo other formats/encodings?
+                                        }
+                                        _ => {
+                                            writer.write_fmt(format_args!(
+                                                "adlt.someip unexpected encoding {:?} for AUnicode2String!",
+                                                coded_type.encoding))?;
+                                            encoding_rs::UTF_8
+                                        }
+                                    }
                                 }
                             };
                             // TERMINATION ZERO todo!
                             match coded_type.termination {
                                 Some(HoTermination::Zero) => {} // expected, we dont search for it but remove the last byte
+                                Some(HoTermination::None) => {
+                                    match &base_data_type {
+                                        BaseDataType::AAsciiString => {
+                                            term_len = 0; // no termination // todo else???
+                                        }
+                                        _ => {
+                                            writer.write_fmt(format_args!("adlt.someip unexpected termination {:?} for AUnicode2String!", coded_type.termination))?;
+                                        }
+                                    }
+                                }
                                 _ => {
-                                    writer.write_fmt(format_args!("adlt.someip unexpected termination {:?} for AUnicode2String!", coded_type.termination))?;
+                                    match &base_data_type {
+                                        BaseDataType::AAsciiString => {
+                                            if coded_type.termination.is_none() {
+                                                term_len = 0; // no termination // todo else???
+                                            }
+                                        }
+                                        _ => {
+                                            writer.write_fmt(format_args!("adlt.someip unexpected termination {:?} for AUnicode2String/AAsciiString!", coded_type.termination))?;
+                                        }
+                                    }
                                 }
                             };
                             let len_bytes = match coded_type.category {
@@ -1300,6 +1325,40 @@ mod tests {
         let mut v = Vec::<u8>::new();
         buf_as_hex_to_io_write(&mut v, &[0x0f_u8, 0x00_u8, 0xff_u8]).unwrap();
         assert_eq!(std::str::from_utf8(v.as_slice()).unwrap(), "0f 00 ff");
+    }
+
+    #[test]
+    fn writer_coding_aascii() {
+        let mut v = Vec::<u8>::new();
+        let coding: Coding = Coding {
+            id: "AAsciiString".to_string(),
+            short_name: None,
+            coded_type: Some(CodedType {
+                bit_length: Some(7 * 8),
+                min_length: None,
+                max_length: None,
+                base_data_type: Some(BaseDataType::AAsciiString),
+                category: Category::StandardLengthType,
+                encoding: None,
+                termination: None,
+            }),
+            compu_methods: vec![],
+        };
+        let fd = FibexData::new();
+        let mut parsed_bits = 0u32;
+        let mut ctx = SomeipDecodingCtx {
+            parsed_bits: &mut parsed_bits,
+            available_bits: 8 * 8,
+            payload: &[0x43_u8, 0x45, 0x30, 0x38, 0x31, 0x35, 0x30, 0x31],
+            fd: &fd,
+        };
+        to_writer_coding(&coding, &mut v, &mut ctx, None, None, true).unwrap();
+        assert_eq!(
+            *ctx.parsed_bits,
+            coding.coded_type.as_ref().unwrap().bit_length.unwrap()
+        );
+        assert_eq!(std::str::from_utf8(v.as_slice()).unwrap(), "\"CE08150\"");
+        // todo add support/test for other encoding/terminations
     }
 
     #[test]

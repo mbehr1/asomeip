@@ -493,18 +493,19 @@ where
                 // find signal
                 if let Some(signal) = fd.elements.signals_map_by_id.get(&signal_inst.signal_ref) {
                     // adjust bit-position: skip some bits?
+                    // the bit position is relative to pdu start
                     match &signal_inst.bit_position {
-                        Some(bit_position) if *bit_position > *ctx.parsed_bits => {
+                        Some(bit_position) if prev_parsed_bits + *bit_position > *ctx.parsed_bits => {
                             /*writer.write_fmt(format_args!(
                                 "\"<adlt.info! skipped {} bits due to BIT-POSITION>\"",
                                 *bit_position - *ctx.parsed_bits
                             ))?;*/
-                            *ctx.parsed_bits = *bit_position;
+                            *ctx.parsed_bits = prev_parsed_bits + *bit_position;
                         }
-                        Some(bit_position) if *bit_position < *ctx.parsed_bits => {
+                        Some(bit_position) if prev_parsed_bits+ *bit_position < *ctx.parsed_bits => {
                             writer.write_fmt(format_args!(
-                                "\"<adlt.err! BIT-POSITION ({}) mismatch ({})!>\"",
-                                *bit_position, *ctx.parsed_bits
+                                "\"<adlt.err! BIT-POSITION ({}+{}) mismatch ({})!>\"",
+                                prev_parsed_bits, *bit_position, *ctx.parsed_bits
                             ))?;
                             break;
                         }
@@ -890,7 +891,7 @@ where
     if *ctx.parsed_bits >= ctx.available_bits {
         return Err(std::io::Error::new(
             ErrorKind::Other,
-            "no more data to decode Coding!",
+            format!("no more data (parsed:{}/avail:{}) to decode Coding {:?}!", *ctx.parsed_bits, ctx.available_bits, coding),
         ));
     } else if let Some(coded_type) = &coding.coded_type {
         let bit_l = utilization

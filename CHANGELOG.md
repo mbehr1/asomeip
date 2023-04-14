@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.4.1 - 2023-04-14
+#### Bug Fixes
+- signal bit_position is relative to pdu start not frame start - (4915364) - Matthias Behr
+- pdu decoding not at end of payload - (10302c5) - Matthias Behr
+- add basic support for AAsciiString - (2a485cf) - Matthias Behr
+#### Miscellaneous Chores
+- cargo fmt changes - (ef37ee5) - Matthias Behr
+
+- - -
+
 ## v0.4.0 - 2023-04-11
 #### Features
 - add support for BaseDataType::Other - (8a49ef7) - Matthias Behr

@@ -495,14 +495,18 @@ where
                     // adjust bit-position: skip some bits?
                     // the bit position is relative to pdu start
                     match &signal_inst.bit_position {
-                        Some(bit_position) if prev_parsed_bits + *bit_position > *ctx.parsed_bits => {
+                        Some(bit_position)
+                            if prev_parsed_bits + *bit_position > *ctx.parsed_bits =>
+                        {
                             /*writer.write_fmt(format_args!(
                                 "\"<adlt.info! skipped {} bits due to BIT-POSITION>\"",
                                 *bit_position - *ctx.parsed_bits
                             ))?;*/
                             *ctx.parsed_bits = prev_parsed_bits + *bit_position;
                         }
-                        Some(bit_position) if prev_parsed_bits+ *bit_position < *ctx.parsed_bits => {
+                        Some(bit_position)
+                            if prev_parsed_bits + *bit_position < *ctx.parsed_bits =>
+                        {
                             writer.write_fmt(format_args!(
                                 "\"<adlt.err! BIT-POSITION ({}+{}) mismatch ({})!>\"",
                                 prev_parsed_bits, *bit_position, *ctx.parsed_bits
@@ -891,7 +895,10 @@ where
     if *ctx.parsed_bits >= ctx.available_bits {
         return Err(std::io::Error::new(
             ErrorKind::Other,
-            format!("no more data (parsed:{}/avail:{}) to decode Coding {:?}!", *ctx.parsed_bits, ctx.available_bits, coding),
+            format!(
+                "no more data (parsed:{}/avail:{}) to decode Coding {:?}!",
+                *ctx.parsed_bits, ctx.available_bits, coding
+            ),
         ));
     } else if let Some(coded_type) = &coding.coded_type {
         let bit_l = utilization

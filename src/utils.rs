@@ -481,10 +481,10 @@ where
     W: std::io::Write,
 {
     // enough bits remaining?
-    if (*ctx.parsed_bits + (pdu.byte_length * 8)) < ctx.available_bits {
+    if (*ctx.parsed_bits + (pdu.byte_length * 8)) > ctx.available_bits {
         Err(std::io::Error::new(
             ErrorKind::Other,
-            format!("no more data to decode PDU {:?}!", pdu.short_name),
+            format!("no more data to decode PDU {:?}! parsed_bits={}, available_bits={}, needed pdu.byte_length={}", pdu.short_name, *ctx.parsed_bits, ctx.available_bits, pdu.byte_length),
         ))
     } else {
         let prev_parsed_bits = *ctx.parsed_bits;

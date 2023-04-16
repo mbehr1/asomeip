@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.5.0 - 2023-04-16
+#### Miscellaneous Chores
+- update afibex version - (78582b8) - Matthias Behr
+
+- - -
+
 ## v0.4.1 - 2023-04-14
 #### Bug Fixes
 - signal bit_position is relative to pdu start not frame start - (4915364) - Matthias Behr

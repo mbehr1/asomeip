@@ -532,15 +532,42 @@ where
                             "\" <SIGNAL {:?} CODING-REF {}!>\"",
                             signal.short_name, signal.coding_ref,
                         ))?;*/
-                        // todo is_high_low_byte_order! then overwrite/modify parent_utilization
-                        to_writer_coding(
-                            coding,
-                            writer,
-                            ctx,
-                            None,
-                            parent_utilization,
-                            decode_compu_methods,
-                        )?;
+                        // if we have is_high_low_byte_order then overwrite/modify parent_utilization
+                        // order: (closest one first, so: signal_instance, pdu_instance...
+                        //
+                        let mut util = Utilization {
+                            coding_ref: None,
+                            bit_length: None,
+                            min_bit_length: None,
+                            max_bit_length: None,
+                            is_high_low_byte_order: None,
+                            serialization_attributes: None,
+                        };
+                        let util = if let Some(putil) = parent_utilization {
+                            if let Some(is_high_low_byte_order) =
+                                &signal_inst.is_high_low_byte_order
+                            {
+                                // overwrite is_high_low_byte_order only
+                                util.coding_ref = putil.coding_ref.clone();
+                                util.bit_length = putil.bit_length;
+                                util.min_bit_length = putil.min_bit_length;
+                                util.max_bit_length = putil.max_bit_length;
+                                util.is_high_low_byte_order = Some(*is_high_low_byte_order);
+                                util.serialization_attributes =
+                                    putil.serialization_attributes.clone();
+                                Some(&util)
+                            } else {
+                                parent_utilization
+                            }
+                        } else if let Some(is_high_low_byte_order) =
+                            &signal_inst.is_high_low_byte_order
+                        {
+                            util.is_high_low_byte_order = Some(*is_high_low_byte_order);
+                            Some(&util)
+                        } else {
+                            None
+                        };
+                        to_writer_coding(coding, writer, ctx, None, util, decode_compu_methods)?;
                     } else {
                         writer.write_fmt(format_args!(
                             "\"<adlt.err! CODING-REF not found ({}) for PDU short-name={:?}!>\"",

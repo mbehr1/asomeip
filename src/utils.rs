@@ -579,8 +579,58 @@ where
             }
             writer.write_fmt(format_args!("}}"))?;
         } else {
-            // todo MULTIPLEXER?
-            writer.write_fmt(format_args!("{{}}"))?;
+            // MULTIPLEXER?
+            if let Some(multiplexer) = &pdu.multiplexer {
+                // decode the switch:
+                let switch = &multiplexer.switch;
+                *ctx.parsed_bits += switch.bit_position; // skip some bits (before the switch)
+                let switch_val: u64 =
+                    get_int_bits(switch.is_high_low_byte_order, switch.bit_length, ctx);
+                // do we know this one?
+                if let Some(pdu_inst) = multiplexer
+                    .dynamic_part
+                    .pdu_instances_switch_map
+                    .get(&switch_val)
+                {
+                    if let Some(pdu) = fd.elements.pdus_map_by_id.get(&pdu_inst.pdu_ref) {
+                        // todo support bit_position
+                        if let Some(short_name) = &switch.short_name {
+                            writer
+                                .write_fmt(format_args!("{{\"{}\":{},", short_name, switch_val))?;
+                        } else {
+                            // we simply dont output the switch name/val
+                            writer.write_fmt(format_args!("{{"))?;
+                        }
+
+                        if let Some(short_name) = &pdu.short_name {
+                            writer.write_fmt(format_args!("\"{}\":", short_name))?;
+                        } else {
+                            writer.write_fmt(format_args!("\"{}\":", switch_val))?;
+                        };
+                        if *ctx.parsed_bits >= ctx.available_bits {
+                            writer
+                                .write_fmt(format_args!("\"<adlt.err! no payload remaining>\""))?;
+                        } else {
+                            // now the real payload
+                            to_writer_pdu(pdu, fd, writer, ctx, None, decode_compu_methods)?;
+                            // todo Utilization/serialization-attributes in Method
+                        }
+                        writer.write_fmt(format_args!("}}"))?;
+                    } else {
+                        writer.write_fmt(format_args!(
+                            "\"adlt.err! multiplexer {:?} switch_val={} known but PDU unknown!\"",
+                            switch.short_name, switch_val
+                        ))?;
+                    }
+                } else if let Some(short_name) = &switch.short_name {
+                    writer.write_fmt(format_args!("{{\"{}\":{}}}", short_name, switch_val))?;
+                } else {
+                    writer.write_fmt(format_args!("{{}}"))?;
+                }
+            } else {
+                // todo unknown???
+                writer.write_fmt(format_args!("{{}}"))?;
+            }
         }
 
         // mark full pdu as processed: (so that incomplete/errorneus can be skipped)

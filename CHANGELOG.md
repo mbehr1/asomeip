@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.6.0 - 2023-04-26
+#### Features
+- support fx::multiplexer - (0d43862) - Matthias Behr
+
+- - -
 ## v0.5.1 - 2023-04-18
 #### Bug Fixes
 - use is_high_low_byte_order from signal_instance - (b9bd1d1) - Matthias Behr

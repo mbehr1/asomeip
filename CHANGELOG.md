@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.7.0 - 2023-07-23
+#### Features
+- add support for franca-json files - (a1ea9d6) - Matthias Behr
+
+- - -
+
 ## v0.6.0 - 2023-04-26
 #### Features
 - support fx::multiplexer - (0d43862) - Matthias Behr

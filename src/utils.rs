@@ -1580,4 +1580,107 @@ mod tests {
             "* (0000:0000) unknown service with id 0 and major 15 (000c).UNKNOWN RC!"
         );
     }
+
+    #[test]
+    fn basic_header_franca_json() {
+        let mut fd = FibexData::new();
+        let path = Path::new("tests/fibex1.json");
+        assert!(path.exists());
+        assert!(fd.load_fibex_file(path).is_ok());
+
+        let r = decode_someip_header_and_payload(
+            &fd,
+            0x1,
+            &[
+                0x10, 0x01, 0x80, 0x01, 0, 0, 0, 10, 0xf3, 0x34, 0x45, 0x56, 1, 1, 0, 4,
+            ],
+            &[1, 1],
+        );
+        assert!(r.is_ok(), "{:?}", r);
+        let r = r.unwrap();
+        assert_eq!(
+            r.to_ascii_lowercase(),
+            r#"> (f334:4556) ActivationWireExtDiag(0001).changed_StatusExtDiag_field{"StatusExtDiag":{"statusConnectionHSFZ":"CONNECTION_ESTABLISHED","statusActivationWireHSFZ":"ACTIVATION_WIRE_HIGH"}}[NOT READY]"#.to_ascii_lowercase()
+        );
+        // return code should be set to 0 for a request (PRS_SOMEIP_00058) but for testing we use a different value here
+
+        let major = 2u8;
+        let r = decode_someip_header_and_payload(
+            &fd,
+            0x1,
+            &[
+                0x01,
+                0x01,
+                0x0,
+                49,
+                0,
+                0,
+                0,
+                8 + 7,
+                0xf3,
+                0x34,
+                0x45,
+                0x56,
+                1,
+                major,
+                0,
+                4,
+            ],
+            &[0, 0, 0, 3, 1, 2, 3],
+        );
+        assert!(r.is_ok(), "{:?}", r);
+        let r = r.unwrap();
+        assert_eq!(
+            r,
+            // fibex r#"> (f334:4556) EnhancedTestabilityServiceHigh2(0001).clientServiceCallEchoUINT8Array{"inUINT8Array":[1,2,3]}[NOT READY]"#
+            r#"> (f334:4556) EnhancedTestabilityServiceHigh2(0001).clientServiceCallEchoUINT8Array{"uINT8Array_in":[1,2,3]}[NOT READY]"#
+        );
+
+        // one with integer bits:
+        let major = 1u8;
+        let r = decode_someip_header_and_payload(
+            &fd,
+            0x1,
+            &[
+                0x75,
+                0x030,
+                0x80,
+                0x02,
+                0,
+                0,
+                0,
+                8 + 8,
+                0xf3,
+                0x34,
+                0x45,
+                0x56,
+                1,
+                major,
+                0,
+                4,
+            ],
+            &[0x10, 0x23, 0x45, 0x67, 0x8a, 0xbc, 0xde, 0xf0],
+        );
+        assert!(r.is_ok(), "{:?}", r);
+        let r = r.unwrap();
+        assert_eq!(
+            r,
+            r#"> (f334:4556) VehicleModel(0001).changed_OdometryVehicle2_field{"OdometryVehicle2":{"xPositionOdometryVehicleErrorAmplitude":784,"yPositionOdometryVehicleErrorAmplitude":1106,"yawAngleOdometryVehicleErrorAmplitude":2663,"statusRadiusWheelOdometry":8,"counterSyncOdometryVehicle2":943,"aliveOdometryVehicle2":13,"cRCOdometryVehicle2":240}}[NOT READY]"#
+            //r#"> (f334:4556) EnhancedTestabilityServiceHigh2(0001).clientServiceCallEchoUINT8Array{"uINT8Array_in":[1,2,3]}[NOT READY]"#
+        );
+
+        // invalid rc
+        let r = decode_someip_header_and_payload(
+            &fd,
+            12,
+            &[0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 15, 2, 42],
+            &[],
+        );
+        assert!(r.is_ok(), "{:?}", r);
+        let r = r.unwrap();
+        assert_eq!(
+            r,
+            "* (0000:0000) unknown service with id 0 and major 15 (000c).UNKNOWN RC!"
+        );
+    }
 }

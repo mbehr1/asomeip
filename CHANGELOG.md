@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.8.0 - 2024-01-13
+#### Features
+- use backslash symbol for requests wo return - (b48f331) - Matthias Behr
+
+- - -
+
 ## v0.7.1 - 2023-07-23
 #### Bug Fixes
 - find json in get_all_fibex_in_dir - (8dd4a25) - Matthias Behr

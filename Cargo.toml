@@ -1,6 +1,6 @@
 [package]
 name = "asomeip"
-version = "0.7.1"
+version = "0.8.0"
 edition = "2021"
 authors = ["Matthias Behr"]
 license = "MIT OR Apache-2.0"
@@ -16,10 +16,10 @@ categories = ["development-tools", "encoding", "parsing"]
 [dependencies]
 afibex = "0.10.1"
 lazy_static = "1.4.0"
-encoding_rs = "0.8.31"
+encoding_rs = "0.8.32"
 bitvec = "1"
 funty = "2.0.0"
-regex = "1.7.0"
+regex = "1.8.4"
 
 [package.metadata.workspaces]
 independent = true

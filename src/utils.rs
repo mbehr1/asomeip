@@ -51,10 +51,10 @@ lazy_static! {
     /// message type indicator see PRS_SOMEIP_00055
     static ref MSG_TYPE_MAP: HashMap<u8, &'static str> = vec![
         (0, "> "), // request
-        (1, "> "), // request no return
+        (1, "\\ "), // request no return (symbol like from plantuml sequence diagram for top half of arrow)
         (2, "* "), // notif
         (0x20, "> "), // TP request
-        (0x21, "> "), // TP request no return
+        (0x21, "\\ "), // TP request no return
         (0x22, "* "), // TP notif
         (0x23, "< "), // TP resp
         (0x24, "! "), // TP err
@@ -83,7 +83,7 @@ lazy_static! {
 
 /// decode a someip header and payload according to RS_SOMEIP_00027
 /// into a string that follows the conventions:
-/// - symbol for request (>), response (<), notification (*) or errors (!)
+/// - symbol for request (>), request wo response (\), response (<), notification (*) or errors (!)
 /// - (client-id:session-id)
 /// - service name
 /// - (instance id in hex).
@@ -1623,7 +1623,7 @@ mod tests {
                 0x56,
                 1,
                 major,
-                0,
+                1,
                 4,
             ],
             &[0, 0, 0, 3, 1, 2, 3],
@@ -1632,8 +1632,7 @@ mod tests {
         let r = r.unwrap();
         assert_eq!(
             r,
-            // fibex r#"> (f334:4556) EnhancedTestabilityServiceHigh2(0001).clientServiceCallEchoUINT8Array{"inUINT8Array":[1,2,3]}[NOT READY]"#
-            r#"> (f334:4556) EnhancedTestabilityServiceHigh2(0001).clientServiceCallEchoUINT8Array{"uINT8Array_in":[1,2,3]}[NOT READY]"#
+            r#"\ (f334:4556) EnhancedTestabilityServiceHigh2(0001).clientServiceCallEchoUINT8Array{"uINT8Array_in":[1,2,3]}[NOT READY]"#
         );
 
         // one with integer bits:
@@ -1666,7 +1665,6 @@ mod tests {
         assert_eq!(
             r,
             r#"> (f334:4556) VehicleModel(0001).changed_OdometryVehicle2_field{"OdometryVehicle2":{"xPositionOdometryVehicleErrorAmplitude":784,"yPositionOdometryVehicleErrorAmplitude":1106,"yawAngleOdometryVehicleErrorAmplitude":2663,"statusRadiusWheelOdometry":8,"counterSyncOdometryVehicle2":943,"aliveOdometryVehicle2":13,"cRCOdometryVehicle2":240}}[NOT READY]"#
-            //r#"> (f334:4556) EnhancedTestabilityServiceHigh2(0001).clientServiceCallEchoUINT8Array{"uINT8Array_in":[1,2,3]}[NOT READY]"#
         );
 
         // invalid rc

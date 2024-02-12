@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.9.0 - 2024-02-12
+#### Features
+- update afibex to 0.11.0 - (bae809e) - Matthias Behr
+
+- - -
+
 ## v0.8.0 - 2024-01-13
 #### Features
 - use backslash symbol for requests wo return - (b48f331) - Matthias Behr

@@ -1549,6 +1549,7 @@ mod tests {
         let path = Path::new("tests/fibex1.xml");
         assert!(path.exists());
         assert!(fd.load_fibex_file(path).is_ok());
+        assert_eq!(fd.parse_warnings.len(), 0);
 
         let r = decode_someip_header_and_payload(
             &fd,
@@ -1587,6 +1588,7 @@ mod tests {
         let path = Path::new("tests/fibex1.json");
         assert!(path.exists());
         assert!(fd.load_fibex_file(path).is_ok());
+        assert_eq!(fd.parse_warnings.len(), 0);
 
         let r = decode_someip_header_and_payload(
             &fd,

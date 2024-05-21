@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.9.2 - 2024-05-21
+#### Bug Fixes
+- improve output on decoding errors - (ec5b4e0) - Matthias Behr
+
+- - -
+
 ## v0.9.0 - 2024-02-12
 #### Features
 - update afibex to 0.11.0 - (bae809e) - Matthias Behr

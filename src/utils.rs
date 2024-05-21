@@ -137,8 +137,10 @@ pub fn decode_someip_header_and_payload(
 
                         // parse parameter...
                         let payload_str =
-                            decode_payload(fd, message_type, method, payload_length, payload)?;
-
+                            match decode_payload(fd, message_type, method, payload_length, payload){
+                                Ok(s) => s,
+                                Err(e) => format!(r#"{{"adlt.FibexError":"'{}' sid={}v{}"}}"#, e, service_id, major)
+                            };
                         res += &format!(
                             "({:04x}:{:04x}) {}({:04x}).{}{}",
                             client_id, session_id, service_name, inst_id, method_name, payload_str
@@ -682,7 +684,7 @@ where
     if *ctx.parsed_bits >= ctx.available_bits {
         Err(std::io::Error::new(
             ErrorKind::Other,
-            "no more data to decode Parameter!",
+            format!("no more data (parsed {} bits) to decode Parameter {} {}!", *ctx.parsed_bits, fd_parameter.position, fd_parameter.short_name.as_ref().unwrap_or(&fd_parameter.id)),
         ))
     } else {
         // find the datatype:

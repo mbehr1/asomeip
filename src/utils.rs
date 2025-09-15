@@ -137,9 +137,13 @@ pub fn decode_someip_header_and_payload(
 
                         // parse parameter...
                         let payload_str =
-                            match decode_payload(fd, message_type, method, payload_length, payload){
+                            match decode_payload(fd, message_type, method, payload_length, payload)
+                            {
                                 Ok(s) => s,
-                                Err(e) => format!(r#"{{"adlt.FibexError":"'{}' sid={}v{}"}}"#, e, service_id, major)
+                                Err(e) => format!(
+                                    r#"{{"adlt.FibexError":"'{}' sid={}v{}"}}"#,
+                                    e, service_id, major
+                                ),
                             };
                         res += &format!(
                             "({:04x}:{:04x}) {}({:04x}).{}{}",
@@ -684,7 +688,12 @@ where
     if *ctx.parsed_bits >= ctx.available_bits {
         Err(std::io::Error::new(
             ErrorKind::Other,
-            format!("no more data (parsed {} bits) to decode Parameter {} {}!", *ctx.parsed_bits, fd_parameter.position, fd_parameter.short_name.as_ref().unwrap_or(&fd_parameter.id)),
+            format!(
+                "no more data (parsed {} bits) to decode Parameter {} {}!",
+                *ctx.parsed_bits,
+                fd_parameter.position,
+                fd_parameter.short_name.as_ref().unwrap_or(&fd_parameter.id)
+            ),
         ))
     } else {
         // find the datatype:
@@ -746,11 +755,11 @@ where
 
         let length_field_size = utilization
             .and_then(|u| u.serialization_attributes.as_ref())
-            .and_then(|s| s.array_length_field_size)
-            .unwrap_or(32);
+            .and_then(|s| s.array_length_field_size);
 
         writer.write_all(b"[")?;
         let array_len_bits: u64 = if static_nr_elems.is_none() {
+            let length_field_size = length_field_size.unwrap_or(32);
             if ctx.remaining_bits() < length_field_size {
                 return Err(std::io::Error::new(
                     ErrorKind::Other,
@@ -760,6 +769,7 @@ where
 
             get_int_bits::<u64>(true, length_field_size, ctx) * 8 // todo endianess?
         } else {
+            let length_field_size = length_field_size.unwrap_or(0);
             if length_field_size > 0 {
                 writer.write_fmt(format_args!(
                     "adlt.err! unsupported array with min_size = max_size but length_field_size={} for datatype {}",
@@ -1581,6 +1591,45 @@ mod tests {
         assert_eq!(
             r,
             "* (0000:0000) unknown service with id 0 and major 15 (000c).UNKNOWN RC!"
+        );
+    }
+
+    #[test]
+    fn basic_array1() {
+        let mut fd = FibexData::new();
+        let path = Path::new("tests/fibex1.xml");
+        assert!(path.exists());
+        assert!(fd.load_fibex_file(path).is_ok());
+        assert_eq!(fd.parse_warnings.len(), 0);
+
+        let r = decode_someip_header_and_payload(
+            &fd,
+            0x4d2,
+            &[
+                0xfa,
+                0x62,
+                0x3,
+                0xe9,
+                0,
+                0,
+                0,
+                8 + 4 + 4 + 2, // 8 header, 4 payload static array (4 * 1), 4 array length(u32), 2 payload
+                0xf3,
+                0x34,
+                0x45,
+                0x56,
+                0,
+                1,
+                0,
+                4,
+            ],
+            &[42, 43, 44, 45, 0, 0, 0, 2, 46, 47],
+        );
+        assert!(r.is_ok(), "{:?}", r);
+        let r = r.unwrap();
+        assert_eq!(
+            r,
+            r#"> (f334:4556) TestService1API(04d2).submitParArray{"FixedSizeArray":[42,43,44,45],"DynSizeArray":[46,47]}[NOT READY]"#
         );
     }
 

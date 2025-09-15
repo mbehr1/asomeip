@@ -14,11 +14,7 @@ use afibex::fibex::{
 };
 use bitvec::{field::BitField, order::Lsb0, prelude::*};
 use lazy_static::lazy_static;
-use std::{
-    collections::HashMap,
-    convert::TryInto,
-    io::{ErrorKind, Write},
-};
+use std::{collections::HashMap, convert::TryInto, io::Write};
 
 static U8_HEX_LOW: [u8; 16] = [
     b'0', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'a', b'b', b'c', b'd', b'e', b'f',
@@ -137,9 +133,13 @@ pub fn decode_someip_header_and_payload(
 
                         // parse parameter...
                         let payload_str =
-                            match decode_payload(fd, message_type, method, payload_length, payload){
+                            match decode_payload(fd, message_type, method, payload_length, payload)
+                            {
                                 Ok(s) => s,
-                                Err(e) => format!(r#"{{"adlt.FibexError":"'{}' sid={}v{}"}}"#, e, service_id, major)
+                                Err(e) => format!(
+                                    r#"{{"adlt.FibexError":"'{}' sid={}v{}"}}"#,
+                                    e, service_id, major
+                                ),
                             };
                         res += &format!(
                             "({:04x}:{:04x}) {}({:04x}).{}{}",
@@ -484,8 +484,7 @@ where
 {
     // enough bits remaining?
     if (*ctx.parsed_bits + (pdu.byte_length * 8)) > ctx.available_bits {
-        Err(std::io::Error::new(
-            ErrorKind::Other,
+        Err(std::io::Error::other(
             format!("no more data to decode PDU {:?}! parsed_bits={}, available_bits={}, needed pdu.byte_length={}", pdu.short_name, *ctx.parsed_bits, ctx.available_bits, pdu.byte_length),
         ))
     } else {
@@ -682,10 +681,12 @@ where
         parent_utilization.or(fd_parameter.utilization.as_ref()) // we prefer the parent util
     };
     if *ctx.parsed_bits >= ctx.available_bits {
-        Err(std::io::Error::new(
-            ErrorKind::Other,
-            format!("no more data (parsed {} bits) to decode Parameter {} {}!", *ctx.parsed_bits, fd_parameter.position, fd_parameter.short_name.as_ref().unwrap_or(&fd_parameter.id)),
-        ))
+        Err(std::io::Error::other(format!(
+            "no more data (parsed {} bits) to decode Parameter {} {}!",
+            *ctx.parsed_bits,
+            fd_parameter.position,
+            fd_parameter.short_name.as_ref().unwrap_or(&fd_parameter.id)
+        )))
     } else {
         // find the datatype:
         let datatype = ctx
@@ -694,13 +695,10 @@ where
             .datatypes_map_by_id
             .get(&fd_parameter.datatype_ref)
             .ok_or_else(|| {
-                std::io::Error::new(
-                    ErrorKind::Other,
-                    format!(
-                        "datatype {} for {} not found!",
-                        fd_parameter.datatype_ref, fd_parameter.id
-                    ),
-                )
+                std::io::Error::other(format!(
+                    "datatype {} for {} not found!",
+                    fd_parameter.datatype_ref, fd_parameter.id
+                ))
             })?;
 
         if fd_parameter.array_dimensions.is_empty() {
@@ -731,10 +729,10 @@ where
     W: std::io::Write,
 {
     if fd_parameter.array_dimensions.len() <= dim {
-        Err(std::io::Error::new(
-            ErrorKind::Other,
-            format!("dimension {} < len! for {}", dim, fd_parameter.id),
-        )) // todo check alignment here at byte border at least!
+        Err(std::io::Error::other(format!(
+            "dimension {} < len! for {}",
+            dim, fd_parameter.id
+        ))) // todo check alignment here at byte border at least!
     } else {
         let static_nr_elems = fd_parameter.array_dimensions[dim]
             .minimum_size
@@ -746,20 +744,21 @@ where
 
         let length_field_size = utilization
             .and_then(|u| u.serialization_attributes.as_ref())
-            .and_then(|s| s.array_length_field_size)
-            .unwrap_or(32);
+            .and_then(|s| s.array_length_field_size);
 
         writer.write_all(b"[")?;
         let array_len_bits: u64 = if static_nr_elems.is_none() {
+            let length_field_size = length_field_size.unwrap_or(32);
             if ctx.remaining_bits() < length_field_size {
-                return Err(std::io::Error::new(
-                    ErrorKind::Other,
-                    format!("not enough bits available for {}", fd_parameter.id),
-                ));
+                return Err(std::io::Error::other(format!(
+                    "not enough bits available for {}",
+                    fd_parameter.id
+                )));
             }
 
             get_int_bits::<u64>(true, length_field_size, ctx) * 8 // todo endianess?
         } else {
+            let length_field_size = length_field_size.unwrap_or(0);
             if length_field_size > 0 {
                 writer.write_fmt(format_args!(
                     "adlt.err! unsupported array with min_size = max_size but length_field_size={} for datatype {}",
@@ -816,10 +815,7 @@ where
     W: std::io::Write,
 {
     if *ctx.parsed_bits >= ctx.available_bits {
-        Err(std::io::Error::new(
-            ErrorKind::Other,
-            "no more data to decode Datatype!",
-        ))
+        Err(std::io::Error::other("no more data to decode Datatype!"))
     } else {
         match &fd_datatype.datatype {
             DatatypeType::Common(coding_ref) => {
@@ -844,13 +840,10 @@ where
                     .or_else(|| ctx.fd.pi.codings.get(coding_ref));
 
                 let coding = coding.ok_or_else(|| {
-                    std::io::Error::new(
-                        ErrorKind::Other,
-                        format!(
-                            "coding {} for datatype {} for {} not found!",
-                            coding_ref, fd_datatype.id, fd_datatype.id
-                        ),
-                    )
+                    std::io::Error::other(format!(
+                        "coding {} for datatype {} for {} not found!",
+                        coding_ref, fd_datatype.id, fd_datatype.id
+                    ))
                 })?;
                 to_writer_coding(coding, writer, ctx, None, utilization, false)?;
             }
@@ -859,13 +852,10 @@ where
                     .and_then(|u| u.coding_ref.as_ref())
                     .unwrap_or(coding_ref);
                 let coding = ctx.fd.pi.codings.get(coding_ref).ok_or_else(|| {
-                    std::io::Error::new(
-                        ErrorKind::Other,
-                        format!(
-                            "coding {} for enum datatype {} for {} not found!",
-                            coding_ref, fd_datatype.id, fd_datatype.id
-                        ),
-                    )
+                    std::io::Error::other(format!(
+                        "coding {} for enum datatype {} for {} not found!",
+                        coding_ref, fd_datatype.id, fd_datatype.id
+                    ))
                 })?;
                 to_writer_coding(coding, writer, ctx, Some(enums), utilization, false)?;
             }
@@ -875,14 +865,11 @@ where
                         to_writer_parameter(&cdt.members[0], writer, ctx, utilization)?;
                     // todo add test
                     } else {
-                        return Err(std::io::Error::new(
-                            ErrorKind::Other,
-                            format!(
-                                "complex typedef {} has {} member. Expected 1!",
-                                fd_datatype.id,
-                                cdt.members.len()
-                            ),
-                        ));
+                        return Err(std::io::Error::other(format!(
+                            "complex typedef {} has {} member. Expected 1!",
+                            fd_datatype.id,
+                            cdt.members.len()
+                        )));
                     }
                 }
                 ComplexDatatypeClass::Structure => {
@@ -972,13 +959,10 @@ where
     W: std::io::Write,
 {
     if *ctx.parsed_bits >= ctx.available_bits {
-        return Err(std::io::Error::new(
-            ErrorKind::Other,
-            format!(
-                "no more data (parsed:{}/avail:{}) to decode Coding {:?}!",
-                *ctx.parsed_bits, ctx.available_bits, coding
-            ),
-        ));
+        return Err(std::io::Error::other(format!(
+            "no more data (parsed:{}/avail:{}) to decode Coding {:?}!",
+            *ctx.parsed_bits, ctx.available_bits, coding
+        )));
     } else if let Some(coded_type) = &coding.coded_type {
         let bit_l = utilization
             .and_then(|u| u.bit_length)
@@ -1094,10 +1078,10 @@ where
                                 Category::LeadingLengthInfoType => {
                                     let length_field_size = 32; // todo!
                                     if ctx.remaining_bits() < length_field_size {
-                                        return Err(std::io::Error::new(
-                                            ErrorKind::Other,
-                                            format!("not enough bits available for {}", coding.id),
-                                        ));
+                                        return Err(std::io::Error::other(format!(
+                                            "not enough bits available for {}",
+                                            coding.id
+                                        )));
                                     }
                                     let len_bytes: usize =
                                         get_int_bits(true, length_field_size, ctx);
@@ -1121,13 +1105,10 @@ where
                                     "adlt.someip.len_bytes insane {}",
                                     len_bytes
                                 ))?;
-                                return Err(std::io::Error::new(
-                                    ErrorKind::Other,
-                                    format!(
-                                        "adlt.someip.len_bytes insane {} on decode Coding {:?}!",
-                                        len_bytes, coding
-                                    ),
-                                ));
+                                return Err(std::io::Error::other(format!(
+                                    "adlt.someip.len_bytes insane {} on decode Coding {:?}!",
+                                    len_bytes, coding
+                                )));
                             }
 
                             if ctx.remaining_bits() >= 8 {
@@ -1154,10 +1135,10 @@ where
                                 "adlt.someip.nyi! Coding Category {:?}: {:?}",
                                 coded_type.category, base_data_type
                             ))?;
-                            return Err(std::io::Error::new(
-                                ErrorKind::Other,
-                                format!("nyi {:?} on decode Coding {:?}!", coded_type, coding),
-                            ));
+                            return Err(std::io::Error::other(format!(
+                                "nyi {:?} on decode Coding {:?}!",
+                                coded_type, coding
+                            )));
                         }
                     }
                 }
@@ -1203,13 +1184,10 @@ where
                             "adlt.someip.nyi! Coding w.o. bit_length base_data_type: {:?}",
                             base_data_type
                         ))?;
-                        return Err(std::io::Error::new(
-                            ErrorKind::Other,
-                            format!(
-                                "nyi {:?} on decode Coding w.o. bit_length {:?}!",
-                                coded_type, coding
-                            ),
-                        ));
+                        return Err(std::io::Error::other(format!(
+                            "nyi {:?} on decode Coding w.o. bit_length {:?}!",
+                            coded_type, coding
+                        )));
                     }
                 }
                 _ => {
@@ -1218,22 +1196,19 @@ where
                         "adlt.someip.nyi! Coding base_data_type: {:?}",
                         base_data_type
                     ))?;
-                    return Err(std::io::Error::new(
-                        ErrorKind::Other,
-                        format!("nyi {:?} on decode Coding {:?}!", coded_type, coding),
-                    ));
+                    return Err(std::io::Error::other(format!(
+                        "nyi {:?} on decode Coding {:?}!",
+                        coded_type, coding
+                    )));
                 }
             }
             return Ok(());
         }
     };
-    Err(std::io::Error::new(
-        ErrorKind::Other,
-        format!(
-            "no coded-type/base-data-type to decode Coding '{:?}'",
-            coding.short_name
-        ),
-    ))
+    Err(std::io::Error::other(format!(
+        "no coded-type/base-data-type to decode Coding '{:?}'",
+        coding.short_name
+    )))
 }
 
 fn write_int_val<I: funty::Integral, W: std::io::Write>(
@@ -1392,11 +1367,7 @@ struct SomeipDecodingCtx<'a, 'b> {
 
 impl<'a, 'b> SomeipDecodingCtx<'a, 'b> {
     fn remaining_bits(&self) -> u32 {
-        if *self.parsed_bits < self.available_bits {
-            self.available_bits - *self.parsed_bits
-        } else {
-            0
-        }
+        self.available_bits.saturating_sub(*self.parsed_bits)
     }
 }
 
@@ -1581,6 +1552,45 @@ mod tests {
         assert_eq!(
             r,
             "* (0000:0000) unknown service with id 0 and major 15 (000c).UNKNOWN RC!"
+        );
+    }
+
+    #[test]
+    fn basic_array1() {
+        let mut fd = FibexData::new();
+        let path = Path::new("tests/fibex1.xml");
+        assert!(path.exists());
+        assert!(fd.load_fibex_file(path).is_ok());
+        assert_eq!(fd.parse_warnings.len(), 0);
+
+        let r = decode_someip_header_and_payload(
+            &fd,
+            0x4d2,
+            &[
+                0xfa,
+                0x62,
+                0x3,
+                0xe9,
+                0,
+                0,
+                0,
+                8 + 4 + 4 + 2, // 8 header, 4 payload static array (4 * 1), 4 array length(u32), 2 payload
+                0xf3,
+                0x34,
+                0x45,
+                0x56,
+                0,
+                1,
+                0,
+                4,
+            ],
+            &[42, 43, 44, 45, 0, 0, 0, 2, 46, 47],
+        );
+        assert!(r.is_ok(), "{:?}", r);
+        let r = r.unwrap();
+        assert_eq!(
+            r,
+            r#"> (f334:4556) TestService1API(04d2).submitParArray{"FixedSizeArray":[42,43,44,45],"DynSizeArray":[46,47]}[NOT READY]"#
         );
     }
 

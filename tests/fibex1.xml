@@ -45,6 +45,46 @@
                             </service:RETURN-PARAMETER>
                         </service:RETURN-PARAMETERS>
                     </service:METHOD>
+                <service:METHOD ID="de_mbehr_testservices_TestService1API_submitParArray">
+                    <ho:SHORT-NAME>submitParArray</ho:SHORT-NAME>
+                    <ho:DESC>Method with arrays as parameter</ho:DESC>
+                    <service:METHOD-IDENTIFIER>1001</service:METHOD-IDENTIFIER>
+                    <service:INPUT-PARAMETERS>
+                        <service:INPUT-PARAMETER ID="de_mbehr_testservices_TestService1API_submitArray_param1">
+                            <ho:SHORT-NAME>FixedSizeArray</ho:SHORT-NAME>
+                            <fx:DATATYPE-REF ID-REF="CURRENT_PROJECT_UInt8"/>
+                            <fx:ARRAY-DECLARATION>
+                                <fx:ARRAY-DIMENSION>
+                                    <fx:DIMENSION>1</fx:DIMENSION>
+                                    <fx:MINIMUM-SIZE>4</fx:MINIMUM-SIZE>
+                                    <fx:MAXIMUM-SIZE>4</fx:MAXIMUM-SIZE>
+                                </fx:ARRAY-DIMENSION>
+                            </fx:ARRAY-DECLARATION>
+                            <service:POSITION>0</service:POSITION>
+                            <service:MANDATORY>true</service:MANDATORY>
+                        </service:INPUT-PARAMETER>
+                        <service:INPUT-PARAMETER ID="de_mbehr_testservices_TestService1API_submitArray_param2">
+                            <ho:SHORT-NAME>DynSizeArray</ho:SHORT-NAME>
+                            <fx:DATATYPE-REF ID-REF="CURRENT_PROJECT_UInt8"/>
+                            <fx:ARRAY-DECLARATION>
+                                <fx:ARRAY-DIMENSION>
+                                    <fx:DIMENSION>1</fx:DIMENSION>
+                                    <fx:MAXIMUM-SIZE>4</fx:MAXIMUM-SIZE>
+                                </fx:ARRAY-DIMENSION>
+                            </fx:ARRAY-DECLARATION>
+                            <service:POSITION>0</service:POSITION>
+                            <service:MANDATORY>true</service:MANDATORY>
+                        </service:INPUT-PARAMETER>
+                    </service:INPUT-PARAMETERS>
+                    <service:RETURN-PARAMETERS>
+                        <service:RETURN-PARAMETER ID="de_mbehr_testservices_TestService1API_submitPar1_param1_TestService1Error">
+                            <ho:SHORT-NAME>TestService1Error</ho:SHORT-NAME>
+                            <fx:DATATYPE-REF ID-REF="de_mbehr_testservices_TestService1API_TestService1Error"/>
+                            <service:POSITION>0</service:POSITION>
+                            <service:MANDATORY>true</service:MANDATORY>
+                        </service:RETURN-PARAMETER>
+                    </service:RETURN-PARAMETERS>
+                </service:METHOD>
                 </service:METHODS>
                 <service:FIELDS>
                 </service:FIELDS>

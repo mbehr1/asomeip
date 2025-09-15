@@ -144,7 +144,6 @@ pub fn decode_can_frame(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     #[test]
     fn frame_id_0() {
@@ -155,5 +154,4 @@ mod tests {
     }
 
     // todo create test fibex...
-
 }

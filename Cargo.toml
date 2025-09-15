@@ -1,6 +1,6 @@
 [package]
 name = "asomeip"
-version = "0.9.2"
+version = "0.9.3"
 edition = "2021"
 authors = ["Matthias Behr"]
 license = "MIT OR Apache-2.0"

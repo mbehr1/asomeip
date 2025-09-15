@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.9.3 - 2025-09-15
+#### Bug Fixes
+- package updates to match adlt - (b4d27f6) - Matthias Behr
+- fixed size array without serialization.array_length_field_size wrongly parsed - (6f41eac) - Matthias Behr
+#### Miscellaneous Chores
+- clippy fixes applied - (a663fa5) - Matthias Behr
+
+- - -
+
 ## v0.9.2 - 2024-05-21
 #### Bug Fixes
 - improve output on decoding errors - (ec5b4e0) - Matthias Behr
